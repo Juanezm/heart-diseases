@@ -1,0 +1,279 @@
+---
+title: "PRA2 Visualización de datos"
+author: "Juan Emilio Zurita Macias"
+date: '`r format(Sys.Date(),"%e de %B, %Y")`'
+output:
+  html_document: 
+    theme: bootstrap
+    toc: yes
+    number_sections: yes
+    fig_width: 9.5
+    fig_height: 7
+    code_folding: hide
+    df_print: paged
+  pdf_document:
+    toc: yes
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load_libraries, include=FALSE}
+if (!require('ggraph')) install.packages('ggraph')
+if (!require('ggplot2')) install.packages('ggplot2')
+if (!require('dplyr')) install.packages('dplyr')
+if (!require('hexbin')) install.packages('hexbin')
+if (!require('plotly')) install.packages('plotly')
+if (!require('randomForest')) install.packages('randomForest')
+```
+
+```{r}
+heart <- read.csv("heart_2020_cleaned.csv")
+```
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(plotly)
+library(dplyr)
+
+
+heart %>% 
+  group_by(AgeCategory) %>%
+  summarise(prob.desease.female = sum(Sex == "Female" & HeartDisease == "Yes")/sum(Sex == "Female") * 100,
+            prob.disease.male = sum(Sex == "Male" & HeartDisease == "Yes")/sum(Sex == "Male") * 100  
+) %>%
+  plot_ly(
+    x = ~AgeCategory,
+    y = ~prob.desease.female,
+    name = "Mujeres",
+    type = "bar",
+    marker = list(color = 'rgba(237, 106, 90, 1)')
+) %>% 
+  add_trace(
+    y = ~prob.disease.male,
+    name = 'Hombres',
+    marker = list(color = 'rgba(56, 145, 166, 1)')
+) %>%
+  layout(
+    barmode = 'group',
+    title = "Probabilidad de contraer enfermedades cardiacas clasificados por grupo de edad y género",
+    xaxis = list(title = "Edad"),
+    yaxis = list(title = "Porcentaje"),
+    paper_bgcolor = 'rgb(248, 248, 255)',
+    plot_bgcolor = 'rgb(248, 248, 255)',
+    margin = c(50,50, 50, 50, 4)
+)
+```
+
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(plotly)
+library(dplyr)
+
+
+heart %>% 
+  group_by(Race) %>%
+  summarise(prob.desease.female = round(sum(Sex == "Female" & HeartDisease == "Yes")/length(Sex) * 100, 1),
+            prob.female = round(sum(Sex == "Female" & HeartDisease == "No")/length(Sex) * 100, 1),
+            prob.desease.male = round(sum(Sex == "Male" & HeartDisease == "Yes")/length(Sex) * 100, 1),
+            prob.male = round(sum(Sex == "Male" & HeartDisease == "No")/length(Sex) * 100, 1)
+) %>%
+  plot_ly(
+    y = ~Race,
+    x = ~prob.desease.female,
+    name = "Mujeres con problemas cardíacos",
+    type = "bar",
+    orientation = 'h',
+    hovertemplate  = '%{x}%',
+    marker = list(color = 'rgba(237, 106, 90, 1)')
+) %>% 
+  add_trace(
+    x = ~prob.female,
+    name = "Mujeres sin problemas cardíacos",
+    marker = list(color = 'rgba(237, 106, 90, 0.5)')
+) %>% 
+  add_trace(
+    x = ~prob.desease.male,
+    name = "Hombres con problemas cardíacos",
+    marker = list(color = 'rgba(56, 145, 166, 1)')
+) %>% 
+  add_trace(
+    x = ~prob.male,
+    name = "Hombres sin problemas cardíacos",
+    marker = list(color = 'rgba(56, 145, 166, 0.5)')
+) %>%
+  layout(
+    barmode = 'stack',
+    title = "Enfermedades cardiacas clasificados por raza y género",
+    paper_bgcolor = 'rgb(248, 248, 255)',
+    plot_bgcolor = 'rgb(248, 248, 255)',
+    showlegend = FALSE,
+    margin = c(50,50, 50, 50, 4),
+    xaxis = list(
+      title = "",
+      showgrid = FALSE,
+      showline = FALSE,
+      showticklabels = FALSE,
+      zeroline = FALSE),
+    yaxis = list(
+      title = "",
+      showgrid = FALSE,
+      showline = FALSE,
+      showticklabels = TRUE,
+      ticks="outside",
+      ticklen=10,
+      zeroline = FALSE)
+)
+```
+
+```{r}
+library(dplyr)
+library(plotly)
+
+
+x <- heart %>% 
+  filter(HeartDisease == "Yes") %>%
+  summarise(smoking = sum(Smoking == "Yes") / length(HeartDisease) * 100,
+            alcohol = sum(AlcoholDrinking == "Yes") / length(HeartDisease) * 100,
+            no.activity = sum(PhysicalActivity == "No") / length(HeartDisease) * 100,
+            other = 100 - smoking - alcohol - no.activity 
+)
+
+plot_ly(type='pie', 
+        labels=c("Fumador", "Consumidor de alcohol", "Persona Pasiva", "Otros"), 
+        values=as.numeric(unlist(x)), 
+        textinfo = 'label',
+        hoverinfo = 'percent',
+        insidetextorientation = 'radial',
+        insidetextfont = list(color = c('#FFFFFF', '#000000', '#000000', '#000000')),
+        marker = list(colors = c('#ED6A5A', '#9BC1BC', '#F4F1BB',  '#E6EBE0'))
+) %>% 
+  layout(
+    title = 'Malos hábitos en personas diagnosticadas con enfermedades cardíacas',
+    xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+    yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+    margin = c(50,50, 50, 50, 4),
+    paper_bgcolor = 'rgba(248, 248, 255, 1)',
+    plot_bgcolor = 'rgb(248, 248, 255, 1)'
+)
+```
+
+```{r}
+library(dplyr)
+library(plotly)
+
+
+heart %>% 
+  mutate(BMI.cat = case_when(BMI < 18.5 ~ "Bajo peso",
+                             BMI >= 18.5 & BMI < 25 ~ "Normal",
+                             BMI >= 25 & BMI < 30 ~ "Sobrepeso",
+                             BMI >= 30 ~ "Obesidad")
+) %>%
+group_by(BMI.cat) %>%
+  summarise(prob.desease.female = round(sum(Sex == "Female" & HeartDisease == "Yes")/length(Sex) * 100, 1),
+            prob.desease.male = round(sum(Sex == "Male" & HeartDisease == "Yes")/length(Sex) * 100, 1),
+) %>%
+  plot_ly(
+    y = ~BMI.cat,
+    x = ~prob.desease.female,
+    name = "Mujeres",
+    type = "bar",
+    orientation = 'h',
+    hovertemplate  = '%{x}%',
+    marker = list(color = 'rgba(237, 106, 90, 1)')
+) %>% 
+  add_trace(
+    x = ~prob.desease.male,
+    name = "Hombres",
+    marker = list(color = 'rgba(56, 145, 166, 1)')
+) %>%
+  layout(
+    barmode = 'group',
+    title = "Enfermedades cardiacas clasificados por BMI y género",
+    paper_bgcolor = 'rgb(248, 248, 255)',
+    plot_bgcolor = 'rgb(248, 248, 255)',
+    margin = c(50,50, 50, 50, 4),
+    showlegend = TRUE,
+    xaxis = list(
+      title = "",
+      showgrid = FALSE,
+      showline = FALSE,
+      showticklabels = FALSE,
+      zeroline = FALSE),
+    yaxis = list(
+      title = "",
+      showgrid = FALSE,
+      showline = FALSE,
+      showticklabels = TRUE,
+      ticks = "outside",
+      ticklen = 10,
+      zeroline = FALSE)
+)
+```
+
+```{r}
+library(randomForest)
+library(plotly)
+library(dplyr)
+
+
+heart2 <- heart %>% 
+  mutate(BMI = case_when(BMI < 18.5 ~ "Bajo peso",
+                         BMI >= 18.5 & BMI < 25 ~ "Normal",
+                         BMI >= 25 & BMI < 30 ~ "Sobrepeso",
+                         BMI >= 30 ~ "Obesidad"),
+         SleepTime = case_when(SleepTime < 7 ~ "Insuficiente",
+                               SleepTime >= 7 & SleepTime < 8 ~ "Recomendable",
+                               SleepTime >= 8 ~ "Suficiente"),
+         MentalHealth = case_when(MentalHealth < 5 ~ "Buena",
+                                  MentalHealth >= 5 & MentalHealth < 10 ~ "Mejorable",
+                                  MentalHealth >= 10 ~ "Mala"),
+         PhysicalHealth = case_when(PhysicalHealth < 5 ~ "Buena",
+                                    PhysicalHealth >= 5 & PhysicalHealth < 10 ~ "Mejorable",
+                                    PhysicalHealth >= 10 ~ "Mala"),
+         HeartDisease = as.factor(HeartDisease)
+) 
+
+set.seed(73)
+rf.women <- randomForest(HeartDisease~., ntree=1, data=heart2[heart2$Sex == "Female", ][-c(9)])
+rf.men <- randomForest(HeartDisease~., ntree=1, data=heart2[heart2$Sex == "Male", ][-c(9)])
+
+plot_ly(
+  x = as.numeric(unlist(rf.women$importance)), 
+  y = rownames(rf.women$importance), 
+  name = "Women", 
+  type = 'scatter',
+  mode = "markers", 
+  marker = list(color = 'rgba(237, 106, 90, 1)')
+) %>% 
+  add_trace(
+    x = as.numeric(unlist(rf.men$importance)),  
+    y = rownames(rf.men$importance), 
+    name = "Men",
+    type = 'scatter',
+    mode = "markers", 
+    marker = list(color = 'rgba(56, 145, 166, 1)')
+) %>% 
+  layout(
+    title = "Importancia de cada variable sobre HeartDisease por Random Forest",
+    xaxis = list(title = "MeanDrecreaseGini"),
+    paper_bgcolor = 'rgb(248, 248, 255)',
+    plot_bgcolor = 'rgb(248, 248, 255)',
+    margin = c(50,50, 50, 50, 4),
+    xaxis = list(
+      title = "",
+      showgrid = FALSE,
+      showline = FALSE,
+      showticklabels = FALSE,
+      zeroline = FALSE),
+    yaxis = list(
+      title = "",
+      showgrid = TRUE,
+      showline = FALSE,
+      showticklabels = TRUE,
+      zeroline = FALSE)
+  )
+```
+
+
